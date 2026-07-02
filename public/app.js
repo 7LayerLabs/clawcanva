@@ -19,6 +19,14 @@ function nextName() {
   return ROSTER.find((n) => !used.has(n)) || 'AGENT' + (panes.size + 1);
 }
 
+// muted second line under the callsign, e.g. "Claude Code · dbclaw-os"
+function paneSubtitle(p) {
+  if (p.type === 'note') return '';
+  const tool = p.cmd ? (/claude/i.test(p.cmd) ? 'Claude Code' : p.cmd.split(/\s+/)[0]) : 'PowerShell';
+  const folder = p.cwd ? p.cwd.replace(/[\\/]+$/, '').split(/[\\/]/).pop() : '';
+  return folder ? `${tool} · ${folder}` : tool;
+}
+
 /* ---------- camera ---------- */
 
 function applyCamera() {
@@ -104,7 +112,11 @@ function createPane(opts) {
   el.innerHTML = `
     <div class="pane-head">
       <span class="dot"></span>
-      <span class="pane-title"></span>
+      <div class="pane-titles">
+        <span class="pane-title"></span>
+        <span class="pane-sub"></span>
+      </div>
+      <span class="needs-badge">⏳ needs you</span>
       <span class="head-spacer"></span>
       ${p.type === 'term' ? '<button class="head-btn btn-target" title="Set as voice target">◉</button>' : ''}
       <button class="head-btn btn-close" title="Close">✕</button>
@@ -112,6 +124,7 @@ function createPane(opts) {
     <div class="pane-body"></div>
     <div class="grip"></div>`;
   el.querySelector('.pane-title').textContent = p.title;
+  el.querySelector('.pane-sub').textContent = paneSubtitle(p);
   world.appendChild(el);
   p.el = el;
   panes.set(p.id, p);
@@ -278,7 +291,13 @@ function launchTerm(p) {
   };
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
-    if (msg.type === 'data') term.write(msg.data);
+    if (msg.type === 'data') {
+      term.write(msg.data);
+      // keep a small rolling tail of raw output to scan for "needs you" prompts
+      p.tail = ((p.tail || '') + msg.data).slice(-2500);
+      clearTimeout(p.needsTimer);
+      p.needsTimer = setTimeout(() => checkNeedsYou(p), 400);
+    }
     else if (msg.type === 'exit') {
       p.el.classList.remove('running');
       p.el.classList.add('dead');
@@ -357,7 +376,7 @@ function spawnAgent(cwd, cmd = 'claude') {
   const folder = cwd.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || cwd;
   const name = nextName();
   const pos = nextSpawnPos(720, 460);
-  const p = createPane({ type: 'term', title: `${name} · ${folder.toUpperCase()}`, name, cmd, cwd, ...pos });
+  const p = createPane({ type: 'term', title: name, name, cmd, cwd, ...pos });
   launchTerm(p);
   speak(`${name.toLowerCase()} is up`);
   return p;
@@ -392,6 +411,7 @@ function startListening() {
     alert('This browser has no Web Speech API (Firefox/Brave don\'t). Run start-clawcanvas.cmd — it opens ClawCanvas in Edge, where voice works.');
     return;
   }
+  if (conversationMode) return; // conversation mode owns the mic
   if (listening) return;
   listening = true;
   voiceDiscard = false;
@@ -457,13 +477,26 @@ function refreshVoices() {
 speechSynthesis.onvoiceschanged = refreshVoices;
 refreshVoices();
 
+let clawSpeaking = false; // true while CLAW's TTS is playing (echo guard for conversation mode)
+
 function speak(text) {
   try {
     const u = new SpeechSynthesisUtterance(text);
     if (clawVoice) u.voice = clawVoice;
     u.rate = 1.08;
+    u.onstart = () => { clawSpeaking = true; setMood('talking'); };
+    u.onend = () => { clawSpeaking = false; setMood('idle'); };
+    u.onerror = () => { clawSpeaking = false; setMood('idle'); };
     speechSynthesis.speak(u);
   } catch {}
+}
+
+// drive the little CLAW face: idle | thinking | talking | alert
+function setMood(mood) {
+  const f = document.getElementById('claw-face');
+  if (!f) return;
+  f.classList.remove('mood-idle', 'mood-thinking', 'mood-talking', 'mood-alert');
+  f.classList.add('mood-' + mood);
 }
 
 function findAgent(word) {
@@ -478,8 +511,60 @@ function sendText(p, text) {
   setTimeout(() => {
     if (p.ws.readyState === 1) p.ws.send(JSON.stringify({ type: 'input', data: '\r' }));
   }, 200);
+  clearNeedsYou(p);           // sending input un-blocks the pane
   focusPane(p.id);
   return true;
+}
+
+// Read the last N non-blank lines a terminal is showing, so CLAW can see what
+// each agent is actually doing. Returns null for panes with no live terminal.
+function readTail(p, maxLines = 40) {
+  if (!p.term) return null;
+  try {
+    const buf = p.term.buffer.active;
+    const lines = [];
+    const start = Math.max(0, buf.length - 240);
+    for (let i = start; i < buf.length; i++) {
+      const ln = buf.getLine(i);
+      if (ln) lines.push(ln.translateToString(true).replace(/\s+$/, '').slice(0, 200));
+    }
+    while (lines.length && !lines[lines.length - 1]) lines.pop(); // drop trailing blanks
+    const tail = lines.slice(-maxLines).join('\n').trim();
+    return tail || null;
+  } catch { return null; }
+}
+
+// one-line summary of a pane for the status board
+function paneLastLine(p) {
+  const t = readTail(p, 6);
+  if (!t) return p.el.classList.contains('dead') ? '(stopped)' : '(no output yet)';
+  const lines = t.split('\n').filter((l) => l.trim());
+  return (lines[lines.length - 1] || '').slice(0, 80);
+}
+
+/* ---------- "needs you" alerts ----------
+   Watch each terminal's output for a Claude Code permission/confirm prompt and
+   flag the pane + say its name once, so a blocked agent can't hide off-screen. */
+
+const NEEDS_YOU_RE = /(Do you want to proceed|Do you want to make this edit|Yes, and don't ask again|❯\s*1\.\s*Yes|\(y\/n\)|\[y\/N\]|Press\s+\w+\s+to continue)/i;
+
+function checkNeedsYou(p) {
+  if (!p || p.type !== 'term') return;
+  const blocked = NEEDS_YOU_RE.test(p.tail || '');
+  if (blocked && !p.needsYou) {
+    p.needsYou = true;
+    p.el.classList.add('needs-you');
+    speak(`${(p.name || 'an agent').toLowerCase()} needs you`);
+  } else if (!blocked && p.needsYou) {
+    clearNeedsYou(p);
+  }
+}
+
+function clearNeedsYou(p) {
+  if (p && p.needsYou) {
+    p.needsYou = false;
+    p.el.classList.remove('needs-you');
+  }
 }
 
 /* ---------- CLAW brain ----------
@@ -491,24 +576,41 @@ const clawLogEl = document.getElementById('claw-log');
 const clawInput = document.getElementById('claw-input');
 const clawDot = document.querySelector('.cp-dot');
 
+const clawHistory = []; // last few turns, for follow-up context
+
 function clawLog(who, text) {
   const div = document.createElement('div');
   div.className = 'cp-line ' + who;
   div.textContent = (who === 'you' ? '› ' : '⚡ ') + text;
   clawLogEl.appendChild(div);
   clawLogEl.scrollTop = clawLogEl.scrollHeight;
+  if (who === 'you' || who === 'claw') {
+    clawHistory.push({ who, text });
+    if (clawHistory.length > 8) clawHistory.shift();
+  }
 }
 
 async function orchestrate(text) {
+  // local shortcuts handled instantly, no round-trip (also work offline)
+  if (localCommand(text)) return;
+
   clawLog('you', text);
   clawDot.classList.add('thinking');
+  setMood('thinking');
   try {
     const body = {
       transcript: text,
       lastCwd,
+      history: clawHistory.slice(-6),
       agents: [...panes.values()]
         .filter((p) => p.type === 'term' && p.name)
-        .map((p) => ({ name: p.name, cwd: p.cwd, running: !!(p.ws && p.ws.readyState === 1) })),
+        .map((p) => ({
+          name: p.name,
+          cwd: p.cwd,
+          running: !!(p.ws && p.ws.readyState === 1),
+          target: p.id === voiceTargetId,
+          context: readTail(p),
+        })),
       folders: [...new Set([...panes.values()].map((p) => p.cwd).filter(Boolean).concat(lastCwd))],
     };
     const r = await fetch('/api/orchestrate', {
@@ -546,12 +648,44 @@ async function orchestrate(text) {
       }
     }
     if (data.say) { speak(data.say); clawLog('claw', data.say); }
+    if (data.detail) renderArtifact({ format: 'markdown', content: data.detail });
+    if (data.artifact) renderArtifact(data.artifact);
   } catch (e) {
     clawLog('claw', 'brain offline — using direct routing');
     handleVoice(text);
   } finally {
     clawDot.classList.remove('thinking');
+    setMood('idle');
   }
+}
+
+/* ---------- local voice shortcuts (no round-trip, work offline) ---------- */
+function localCommand(text) {
+  const t = text.trim().toLowerCase();
+  if (/^(show me the menu|show menu|what can you do|help|menu)\b/.test(t)) {
+    clawLog('you', text);
+    renderArtifact({ format: 'menu' });
+    speak('here is what I can do');
+    clawLog('claw', 'menu is up in the panel');
+    return true;
+  }
+  if (/(conversation mode|start conversation|keep listening|hands.?free)/.test(t)) {
+    clawLog('you', text);
+    startConversation();
+    return true;
+  }
+  if (/(stop listening|stop conversation|exit conversation|that'?s all|go to sleep)/.test(t)) {
+    clawLog('you', text);
+    stopConversation();
+    return true;
+  }
+  if (/(status board|fleet status|status of everyone|show.*status)/.test(t)) {
+    clawLog('you', text);
+    renderArtifact({ format: 'status' });
+    speak('here is the fleet');
+    return true;
+  }
+  return false;
 }
 
 // click the CLAW header to audition/cycle voices; choice is remembered
@@ -664,6 +798,160 @@ addEventListener('keydown', (e) => {
 addEventListener('keyup', (e) => {
   if (e.key === 'F2') { e.preventDefault(); stopListening(); }
 });
+
+/* ---------- conversation mode (hands-free) ----------
+   Mic stays open; each finished utterance auto-sends to CLAW. Recognition is
+   ignored while CLAW is speaking so it never hears itself. */
+
+let conversationMode = false;
+let convRecog = null;
+const convBtn = document.getElementById('btn-conv');
+
+function startConversation() {
+  if (!SR) {
+    alert('This browser has no Web Speech API. Open ClawCanvas in Edge (run start-clawcanvas.cmd).');
+    return;
+  }
+  if (conversationMode) return;
+  if (listening) stopListening(); // don't run both mics
+  conversationMode = true;
+  convBtn && convBtn.classList.add('on');
+  convRecog = new SR();
+  convRecog.continuous = true;
+  convRecog.interimResults = true;
+  convRecog.lang = 'en-US';
+  convRecog.onresult = (e) => {
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (!e.results[i].isFinal) continue;
+      const t = e.results[i][0].transcript.trim();
+      if (t && !clawSpeaking) orchestrate(t); // echo guard
+    }
+  };
+  convRecog.onend = () => { if (conversationMode) { try { convRecog.start(); } catch {} } };
+  convRecog.onerror = () => {};
+  try { convRecog.start(); } catch {}
+  micBtn.classList.add('listening');
+  speak('conversation mode on. talk to me.');
+  clawLog('claw', 'conversation mode ON — just talk (say "stop listening" to end)');
+}
+
+function stopConversation() {
+  if (!conversationMode) return;
+  conversationMode = false;
+  convBtn && convBtn.classList.remove('on');
+  micBtn.classList.remove('listening');
+  try { convRecog.stop(); } catch {}
+  speak('okay, going quiet.');
+  clawLog('claw', 'conversation mode off');
+}
+
+if (convBtn) convBtn.onclick = () => (conversationMode ? stopConversation() : startConversation());
+
+/* ---------- artifact panel ----------
+   Right-docked panel where CLAW shows things: a live fleet board, rich markdown
+   answers, or mermaid diagrams. */
+
+const artifactPanel = document.getElementById('artifact-panel');
+const artifactBody = document.getElementById('artifact-body');
+const artifactTitle = document.getElementById('artifact-title');
+const artifactBtn = document.getElementById('btn-artifact');
+
+let mermaidReady = false;
+function initMermaid() {
+  if (mermaidReady || !window.mermaid) return;
+  try { window.mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' }); mermaidReady = true; } catch {}
+}
+
+function openArtifacts() { if (artifactPanel) artifactPanel.classList.add('open'); }
+function toggleArtifacts() { if (artifactPanel) artifactPanel.classList.toggle('open'); }
+if (artifactBtn) artifactBtn.onclick = toggleArtifacts;
+const artifactClose = document.getElementById('artifact-close');
+if (artifactClose) artifactClose.onclick = () => artifactPanel.classList.remove('open');
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function mdToHtml(md) {
+  if (window.marked) { try { return window.marked.parse(md); } catch {} }
+  return '<pre class="ap-raw">' + esc(md) + '</pre>';
+}
+
+async function renderArtifact(art) {
+  if (!artifactPanel) return;
+  const format = art.format || 'markdown';
+  openArtifacts();
+  let title = 'CLAW';
+  let html = '';
+
+  if (format === 'status') {
+    title = 'FLEET STATUS';
+    html = fleetBoardHtml();
+  } else if (format === 'menu') {
+    title = 'WHAT YOU CAN SAY';
+    html = menuHtml();
+  } else if (format === 'mermaid') {
+    title = 'DIAGRAM';
+    initMermaid();
+    if (mermaidReady) {
+      try {
+        const { svg } = await window.mermaid.render('m' + (renderArtifact._n = (renderArtifact._n || 0) + 1), art.content);
+        html = svg;
+      } catch (e) {
+        html = '<div class="ap-err">Diagram couldn\'t render.</div><pre class="ap-raw">' + esc(art.content) + '</pre>';
+      }
+    } else {
+      html = '<pre class="ap-raw">' + esc(art.content) + '</pre>';
+    }
+  } else {
+    title = art.title || 'CLAW';
+    html = mdToHtml(art.content || '');
+  }
+
+  artifactTitle.textContent = title;
+  artifactBody.innerHTML = html;
+  artifactBody.scrollTop = 0;
+}
+
+// live board built straight from the panes (works even with the brain offline)
+function fleetBoardHtml() {
+  const agents = [...panes.values()].filter((p) => p.type === 'term' && p.name);
+  if (!agents.length) return '<div class="ap-empty">No agents open. Hit + AGENT to spawn one.</div>';
+  const rows = agents.map((p) => {
+    let state = 'idle', label = 'idle';
+    if (p.el.classList.contains('dead')) { state = 'dead'; label = 'stopped'; }
+    else if (p.needsYou) { state = 'blocked'; label = 'needs you'; }
+    else if (p.el.classList.contains('running')) { state = 'working'; label = 'working'; }
+    return `<div class="fb-row">
+      <span class="fb-dot ${state}"></span>
+      <span class="fb-name">${esc(p.name)}</span>
+      <span class="fb-state ${state}">${label}</span>
+      <span class="fb-sub">${esc(paneSubtitle(p))}</span>
+      <span class="fb-last">${esc(paneLastLine(p))}</span>
+    </div>`;
+  }).join('');
+  return `<div class="fleet-board">${rows}</div>`;
+}
+
+function menuHtml() {
+  return mdToHtml(`### Commands
+- **"open an agent in dbclaw-os"** — spawn a Claude Code agent in a folder
+- **"tell juno to run the tests"** — send an instruction by callsign
+- **"the one doing the scraper, commit what you have"** — route by what it's *doing*
+- **"everyone, git pull and summarize"** — broadcast to all agents
+- **"close vega"** — shut an agent down
+
+### Ask & understand
+- **"what's everyone doing?"** / **"what's atlas stuck on?"**
+- **"show me a status board"** — live fleet board
+- **"draw a diagram of what the agents are doing"** — mermaid
+
+### Voice
+- **Hold F2** (or TALK) to speak one command
+- **"conversation mode"** — hands-free; **"stop listening"** to end
+
+### Business fleet
+- **"ask arlo what's on today"**, **"ask simon about new reviews"**`);
+}
 
 /* ---------- persistence ---------- */
 

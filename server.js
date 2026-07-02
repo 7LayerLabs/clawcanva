@@ -79,7 +79,9 @@ app.post('/api/openclaw', async (req, res) => {
 
 // ---- CLAW orchestrator brain: transcript -> claude -p (haiku) -> JSON actions ----
 
-const ORCH_MODEL = process.env.CLAW_MODEL || 'haiku';
+// Sonnet by default — smart enough to read terminal output and route/answer.
+// Switch without editing code:  set CLAW_MODEL=haiku (fast)  or  =opus (deepest).
+const ORCH_MODEL = process.env.CLAW_MODEL || 'sonnet';
 
 function resolveCwd(c, fallback) {
   if (!c) return fallback;
@@ -92,26 +94,56 @@ function resolveCwd(c, fallback) {
   return fallback;
 }
 
+// Render each agent with the tail of what it's actually showing on screen, so
+// the brain can route by activity ("the one doing the scraper") and answer about
+// state — not just match callsigns.
+function renderAgents(agents) {
+  if (!agents.length) return '(none open)';
+  return agents.map((a) => {
+    const tag = [a.name, a.running ? 'running' : 'stopped', a.target ? 'CURRENT-TARGET' : '']
+      .filter(Boolean).join(' · ');
+    const ctx = a.context
+      ? `\n    recent output:\n${a.context.split('\n').map((l) => '    | ' + l).join('\n')}`
+      : '\n    recent output: (none)';
+    return `- ${tag}  [folder: ${a.cwd || '?'}]${ctx}`;
+  }).join('\n');
+}
+
+function renderHistory(history) {
+  if (!history || !history.length) return '';
+  const lines = history.map((h) => `${h.who === 'you' ? 'Derek' : 'CLAW'}: ${h.text}`).join('\n');
+  return `\nRecent conversation (for follow-up context):\n${lines}\n`;
+}
+
 app.post('/api/orchestrate', (req, res) => {
-  const { transcript, agents = [], folders = [], lastCwd } = req.body;
-  const prompt = `You are CLAW, the voice orchestrator for ClawCanvas — a canvas of terminal panes, each running a Claude Code agent, on Derek's Windows machine.
+  const { transcript, agents = [], folders = [], lastCwd, history = [] } = req.body;
+  const prompt = `You are CLAW, the voice orchestrator for ClawCanvas — a canvas of terminal panes, each running a Claude Code agent, on Derek's Windows machine. You can SEE what each agent is doing via the recent-output snippets below. Talk to Derek like a sharp, easygoing chief of staff.
 
-Canvas state:
-- Agents on canvas: ${JSON.stringify(agents)}
-- Known project folders: ${JSON.stringify(folders)}
-- Default folder: ${JSON.stringify(lastCwd)}
+Agents on canvas (with what's on their screen right now):
+${renderAgents(agents)}
 
+Known project folders: ${JSON.stringify(folders)}
+Default folder: ${JSON.stringify(lastCwd)}
+${renderHistory(history)}
 Derek said (speech-to-text, may contain transcription errors): ${JSON.stringify(transcript)}
 
-Decide what to do. Action types:
-- {"type":"spawn","cwd":"C:\\\\full\\\\path","cmd":"claude"} — open a new agent. Pick a known folder if he names one (fuzzy match is fine), else the default folder. cmd is "claude", or "claude --continue" if he wants to resume a previous session.
-- {"type":"send","target":"AGENTNAME"|"all","text":"..."} — give an agent an instruction. Clean up obvious transcription errors but keep his intent verbatim. Agent names sound like: rook, juno, vega, atlas, nova, orion, lyra, onyx, echo, milo.
+Decide what to do. TWO situations:
+
+A) He gives a COMMAND (spawn / send an instruction / close / broadcast). Do it, and keep "say" a short spoken confirmation (a few words). Actions:
+- {"type":"spawn","cwd":"C:\\\\full\\\\path","cmd":"claude"} — open a new agent. Pick a known folder if he names one (fuzzy match fine), else the default. cmd is "claude", or "claude --continue" to resume.
+- {"type":"send","target":"AGENTNAME"|"all","text":"..."} — give an agent an instruction. IMPORTANT: he may describe the agent by WHAT IT'S DOING ("the one doing the scraper", "the github with the failing tests") — use the recent output above to pick the right callsign and put that callsign in "target". Clean up obvious transcription errors but keep his intent. Callsigns: rook, juno, vega, atlas, nova, orion, lyra, onyx, echo, milo.
 - {"type":"close","target":"AGENTNAME"}
-- {"type":"openclaw","agent":"arlo","text":"..."} — relay a question or task to Derek's OpenClaw business fleet (separate from the canvas agents). Fleet roster: arlo (chief of staff — schedule, briefings, general questions), simon (Bobola's restaurant ops and reviews), intern (food truck / ice cream / speedway concessions), senra (research and intel), anders (dev tools and product ideas), graham (Market Historian X account). Use this when he addresses one of these names or asks a business/ops question; their reply will be spoken back to him.
-If he's just asking a question about the canvas or chatting, use an empty actions list and answer in "say".
+- {"type":"openclaw","agent":"arlo","text":"..."} — relay to Derek's OpenClaw BUSINESS fleet (separate from canvas agents): arlo (chief of staff), simon (Bobola's restaurant), intern (food truck / ice cream / speedway concessions), senra (research), anders (dev/product), graham (Market Historian X). Use when he addresses one of these names or asks a business/ops question.
+
+B) He asks a QUESTION about his agents or the canvas ("what's everyone doing", "what's atlas stuck on", "which one finished"). READ the output above and actually answer:
+- "say": a concise SPOKEN digest (1-2 sentences, natural).
+- "detail": the fuller written answer — name the agents and cite what you see. Use markdown. Omit if the spoken answer already says everything.
+- optionally "artifact": {"format":"status"} to render a live fleet status board, or {"format":"markdown","content":"..."} for a rich written answer, or {"format":"mermaid","content":"graph TD; ..."} for a diagram. Keep mermaid simple and valid (short node labels, no punctuation that breaks the parser).
+
+Writing style: no em dashes. Be specific, not fluffy.
 
 CRITICAL: Do not use any tools. Do not read or write any files. Reply with RAW JSON only — no markdown fences, no commentary:
-{"say":"casual spoken confirmation, max 15 words","actions":[...]}`;
+{"say":"...","detail":"...(optional)","artifact":{...}(optional),"actions":[...]}`;
 
   let sent = false;
   const done = (payload) => { if (!sent) { sent = true; res.json(payload); } };
@@ -120,7 +152,7 @@ CRITICAL: Do not use any tools. Do not read or write any files. Reply with RAW J
     cwd: __dirname,
     windowsHide: true,
   });
-  const timer = setTimeout(() => { try { child.kill(); } catch {} }, 45000);
+  const timer = setTimeout(() => { try { child.kill(); } catch {} }, 60000);
   let out = '';
   let errOut = '';
   child.stdout.on('data', (d) => { out += d; });
