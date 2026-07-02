@@ -541,6 +541,8 @@ async function orchestrate(text) {
       } else if (a.type === 'close') {
         const p = findAgent(a.target);
         if (p) closePane(p.id);
+      } else if (a.type === 'openclaw') {
+        askFleet(a.agent, a.text); // fire and continue — fleet turns take a while
       }
     }
     if (data.say) { speak(data.say); clawLog('claw', data.say); }
@@ -561,6 +563,31 @@ document.querySelector('.cp-head').addEventListener('click', () => {
   speak(`this is ${short}`);
   clawLog('claw', `voice: ${short}`);
 });
+
+// relay to the OpenClaw business fleet (arlo/simon/intern/senra/anders/graham)
+// and speak the reply back
+async function askFleet(agent, text) {
+  const who = (agent || '').toLowerCase();
+  clawLog('claw', `asking ${who}…`);
+  clawDot.classList.add('thinking');
+  try {
+    const r = await fetch('/api/openclaw', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent: who, text }),
+    });
+    const data = await r.json();
+    if (data.error) { clawLog('claw', `fleet: ${data.error}`); speak(`${who} didn't answer`); return; }
+    clawLog('claw', `${who}: ${data.reply}`);
+    // speak a digest — fleet replies can be long; full text stays in the log
+    const clean = data.reply.replace(/[*_#`|]/g, ' ').replace(/\s+/g, ' ').trim();
+    speak(clean.split(/(?<=[.!?])\s+/).slice(0, 3).join(' ').slice(0, 450));
+  } catch (e) {
+    clawLog('claw', `fleet relay failed: ${e.message}`);
+  } finally {
+    clawDot.classList.remove('thinking');
+  }
+}
 
 clawInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && clawInput.value.trim()) {
