@@ -84,6 +84,19 @@ html, body {
 }
 .wordmark span { color: var(--ink); }
 
+.wordmark .beta {
+  font-style: normal;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--amber);
+  border: 1px solid var(--amber);
+  border-radius: 4px;
+  padding: 2px 5px;
+  margin-left: 8px;
+  vertical-align: 2px;
+}
+
 .tb-divider { width: 1px; height: 20px; background: var(--line-bright); }
 .tb-spacer { width: 10px; }
 

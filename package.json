@@ -1,6 +1,6 @@
 {
   "name": "clawcanvas",
-  "version": "1.0.0",
+  "version": "0.9.0-beta",
   "description": "Free Windows CNVS: infinite canvas of Claude Code agents with voice control",
   "main": "index.js",
   "scripts": {

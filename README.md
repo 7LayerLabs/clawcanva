@@ -1,4 +1,4 @@
-# ClawCanvas
+# ClawCanvas (beta)
 
 Free Windows version of [cnvs.dev](https://cnvs.dev) — an infinite canvas where you
 spawn Claude Code agents as terminal panes and command them with your voice.
