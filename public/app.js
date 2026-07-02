@@ -78,6 +78,8 @@ document.getElementById('btn-home').onclick = () => {
   applyCamera();
 };
 
+document.getElementById('btn-tidy').onclick = arrangeGrid;
+
 /* ---------- panes ---------- */
 
 let spawnCascade = 0;
@@ -86,6 +88,43 @@ function nextSpawnPos(w, h) {
   const c = screenToWorld(innerWidth / 2, innerHeight / 2);
   spawnCascade = (spawnCascade + 1) % 8;
   return { x: c.x - w / 2 + spawnCascade * 34, y: c.y - h / 2 + spawnCascade * 34 };
+}
+
+// the usable board area = viewport minus the topbar and any open side panels
+function workingArea() {
+  const pad = 20, top = 70;
+  const left = (clawPanel && clawPanel.classList.contains('open') ? clawPanel.offsetWidth : 0) + pad;
+  const right = (artifactPanel && artifactPanel.classList.contains('open') ? artifactPanel.offsetWidth : 0) + pad;
+  return { left, top, w: Math.max(320, innerWidth - left - right), h: Math.max(300, innerHeight - top - pad) };
+}
+
+// tile every pane into a clean grid — no infinite-void scatter. Sized so 6-8
+// terminals/notes sit organized in the working area.
+function arrangeGrid() {
+  const list = [...panes.values()];
+  if (!list.length) return;
+  const gap = 16;
+  const a = workingArea();
+  const n = list.length;
+  let cols = n <= 1 ? 1 : n <= 4 ? 2 : 3;
+  cols = Math.max(1, Math.min(cols, Math.floor((a.w + gap) / (340 + gap)) || 1));
+  const rows = Math.ceil(n / cols);
+  const cellW = (a.w - gap * (cols - 1)) / cols;
+  const cellH = Math.max(240, Math.min(470, (a.h - gap * (rows - 1)) / rows));
+  camera.x = 0; camera.y = 0; camera.z = 1; applyCamera();
+  list.forEach((p, i) => {
+    const c = i % cols, r = Math.floor(i / cols);
+    p.x = a.left + c * (cellW + gap);
+    p.y = a.top + r * (cellH + gap);
+    p.w = Math.round(cellW);
+    p.h = Math.round(cellH);
+    p.el.style.left = p.x + 'px';
+    p.el.style.top = p.y + 'px';
+    p.el.style.width = p.w + 'px';
+    p.el.style.height = p.h + 'px';
+    if (p.fit) fitTerm(p);
+  });
+  scheduleSave();
 }
 
 function createPane(opts) {
@@ -340,11 +379,13 @@ document.getElementById('btn-shell').onclick = () => {
   const pos = nextSpawnPos(720, 460);
   const p = createPane({ type: 'term', title: 'SHELL', cmd: null, cwd: lastCwd, ...pos });
   launchTerm(p);
+  arrangeGrid();
 };
 
 document.getElementById('btn-note').onclick = () => {
   const pos = nextSpawnPos(320, 260);
   createPane({ type: 'note', title: 'NOTE', ...pos });
+  arrangeGrid();
 };
 
 // agent spawn modal
@@ -378,6 +419,7 @@ function spawnAgent(cwd, cmd = 'claude') {
   const pos = nextSpawnPos(720, 460);
   const p = createPane({ type: 'term', title: name, name, cmd, cwd, ...pos });
   launchTerm(p);
+  arrangeGrid();
   speak(`${name.toLowerCase()} is up`);
   return p;
 }
@@ -492,7 +534,7 @@ function speak(text) {
 }
 
 // drive the CLAW face: idle | thinking | talking | alert
-const MOOD_LABEL = { idle: 'ready', thinking: 'thinking…', talking: 'talking', alert: 'heads up' };
+const MOOD_LABEL = { idle: 'online', thinking: 'thinking…', talking: 'speaking', alert: 'heads up' };
 function setMood(mood) {
   const f = document.getElementById('claw-face');
   if (!f) return;
@@ -686,6 +728,12 @@ function localCommand(text) {
     clawLog('you', text);
     renderArtifact({ format: 'status' });
     speak('here is the fleet');
+    return true;
+  }
+  if (/(tidy|arrange|organi[sz]e|clean up|line.*up|grid)/.test(t)) {
+    clawLog('you', text);
+    arrangeGrid();
+    speak('all tidied up');
     return true;
   }
   if (/(hide your face|hide the face|hide yourself|minimize yourself|go small)/.test(t)) {

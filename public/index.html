@@ -22,6 +22,7 @@
   <button class="tb-btn accent" id="btn-agent">+ AGENT</button>
   <button class="tb-btn" id="btn-shell">+ SHELL</button>
   <button class="tb-btn" id="btn-note">+ NOTE</button>
+  <button class="tb-btn" id="btn-tidy" title="Tidy panes into a grid">TIDY</button>
   <div class="tb-spacer"></div>
   <button class="tb-btn on" id="btn-face" title="Show/hide the CLAW face">FACE</button>
   <button class="tb-btn" id="btn-artifact" title="Show/hide the artifact panel">PANEL</button>
@@ -75,22 +76,23 @@
 
 <div id="claw-panel" class="open">
   <div class="cp-face">
-    <svg id="claw-face" class="mood-idle" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid meet">
-      <g class="eyes">
-        <g class="eye eye-l">
-          <ellipse class="eyeball" cx="68" cy="60" rx="18" ry="23"/>
-          <circle class="pupil" cx="68" cy="60" r="8"/>
-          <circle class="glint" cx="63" cy="53" r="3"/>
-        </g>
-        <g class="eye eye-r">
-          <ellipse class="eyeball" cx="132" cy="60" rx="18" ry="23"/>
-          <circle class="pupil" cx="132" cy="60" r="8"/>
-          <circle class="glint" cx="127" cy="53" r="3"/>
+    <svg id="claw-face" class="mood-idle" viewBox="0 0 200 200" preserveAspectRatio="xMidYMid meet">
+      <g class="reactor" transform="translate(100 100)">
+        <circle class="r-outer" r="88"/>
+        <circle class="r-ticks" r="74"/>
+        <circle class="r-mid" r="60"/>
+        <circle class="r-coreglow" r="44"/>
+        <circle class="r-core" r="36"/>
+        <g class="wave">
+          <rect x="-28.5" y="-16" width="5" height="32" rx="2.5"/>
+          <rect x="-15.5" y="-16" width="5" height="32" rx="2.5"/>
+          <rect x="-2.5" y="-16" width="5" height="32" rx="2.5"/>
+          <rect x="10.5" y="-16" width="5" height="32" rx="2.5"/>
+          <rect x="23.5" y="-16" width="5" height="32" rx="2.5"/>
         </g>
       </g>
-      <ellipse class="mouth" cx="100" cy="112" rx="26" ry="4"/>
     </svg>
-    <div class="cp-mood">ready</div>
+    <div class="cp-mood">online</div>
   </div>
   <div class="cp-head"><span class="cp-dot"></span>CLAW <em>· ORCHESTRATOR</em></div>
   <div id="claw-log"></div>

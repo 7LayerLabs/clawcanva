@@ -556,47 +556,67 @@ html, body {
   animation: micpulse 1.4s infinite;
 }
 
-/* ---------- v2: big CLAW face ---------- */
-#claw-face { overflow: visible; }
-#claw-face .eyeball { fill: #0d1017; stroke: rgba(255, 122, 82, 0.35); stroke-width: 1.5; }
-#claw-face .pupil { fill: var(--ember-soft); transition: fill 0.3s; }
-#claw-face .glint { fill: #fff; opacity: 0.9; }
-#claw-face .mouth { fill: var(--ember-soft); transition: fill 0.3s; }
+/* ---------- v2: Jarvis-style reactor face ----------
+   A holographic HUD: spinning concentric rings + a reactive waveform core.
+   Cyan by default; brighter when talking, amber when thinking, red on alert. */
 
-/* blink — scale each eye around its own centre so they stay put */
-#claw-face .eyes { transform-box: fill-box; transform-origin: center; animation: blink 5.4s infinite; }
-@keyframes blink {
-  0%, 93%, 100% { transform: scaleY(1); }
-  96% { transform: scaleY(0.08); }
+:root {
+  --hud: #56d4dd;
+  --hud-bright: #9af3fb;
+  --hud-blue: #5ca9ff;
 }
 
-/* idle: pupils drift gently side to side */
-#claw-face .pupil { animation: gaze 8s ease-in-out infinite; }
-@keyframes gaze {
-  0%, 100% { transform: translateX(0); }
-  30% { transform: translateX(-4px); }
-  65% { transform: translateX(4px); }
+#claw-face {
+  overflow: visible;
+  filter: drop-shadow(0 0 16px rgba(86, 212, 221, 0.35));
+  transition: filter 0.4s;
+}
+#claw-face .reactor > * { transform-box: fill-box; transform-origin: center; }
+
+#claw-face .r-outer,
+#claw-face .r-mid,
+#claw-face .r-ticks { fill: none; stroke: var(--hud); transition: stroke 0.4s; }
+#claw-face .r-outer { stroke-width: 2; stroke-dasharray: 46 26; opacity: 0.85; animation: spin 16s linear infinite; }
+#claw-face .r-mid { stroke-width: 1.5; stroke-dasharray: 72 40; opacity: 0.7; animation: spin 10s linear infinite reverse; }
+#claw-face .r-ticks { stroke-width: 7; stroke-dasharray: 1.5 9; opacity: 0.4; animation: spin 46s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+#claw-face .r-coreglow { fill: rgba(86, 212, 221, 0.18); filter: blur(7px); animation: pulse 3.6s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+#claw-face .r-core { fill: #071619; stroke: var(--hud); stroke-width: 1.5; opacity: 0.9; transition: stroke 0.4s; }
+
+/* waveform bars — equalizer that reacts to CLAW's state */
+#claw-face .wave rect { fill: var(--hud-bright); transition: fill 0.4s; animation: eq 2.4s ease-in-out infinite; }
+#claw-face .wave rect:nth-child(1) { animation-delay: -0.9s; }
+#claw-face .wave rect:nth-child(2) { animation-delay: -0.3s; }
+#claw-face .wave rect:nth-child(3) { animation-delay: -1.6s; }
+#claw-face .wave rect:nth-child(4) { animation-delay: -0.6s; }
+#claw-face .wave rect:nth-child(5) { animation-delay: -1.2s; }
+@keyframes eq {
+  0%, 100% { transform: scaleY(0.22); }
+  50% { transform: scaleY(1); }
 }
 
-/* moods */
-#claw-face.mood-thinking .pupil,
-#claw-face.mood-thinking .mouth { fill: var(--amber); }
-#claw-face.mood-alert .pupil,
-#claw-face.mood-alert .mouth { fill: var(--dead); }
-#claw-face.mood-talking .pupil,
-#claw-face.mood-talking .mouth { fill: var(--ok); }
-
-/* talking: the mouth opens and closes */
-#claw-face.mood-talking .mouth { animation: talk 0.26s infinite; }
-@keyframes talk {
-  0%, 100% { ry: 4px; }
-  50% { ry: 17px; }
-}
-#claw-face.mood-thinking .pupil { animation: gaze-up 1.6s ease-in-out infinite; }
-@keyframes gaze-up {
-  0%, 100% { transform: translate(0, 0); }
-  50% { transform: translate(3px, -4px); }
-}
+/* idle: calm, slow breathing bars */
+#claw-face.mood-idle .wave rect { animation-duration: 3s; }
+/* thinking: amber, quicker sweep */
+#claw-face.mood-thinking .r-outer,
+#claw-face.mood-thinking .r-mid,
+#claw-face.mood-thinking .r-ticks,
+#claw-face.mood-thinking .r-core { stroke: var(--amber); }
+#claw-face.mood-thinking .wave rect { fill: var(--amber); animation-duration: 1.3s; }
+#claw-face.mood-thinking { filter: drop-shadow(0 0 18px rgba(255, 180, 84, 0.4)); }
+/* talking: bright cyan, fast energetic equalizer */
+#claw-face.mood-talking .wave rect { animation-duration: 0.42s; fill: #fff; }
+#claw-face.mood-talking .r-core { stroke: var(--hud-bright); }
+#claw-face.mood-talking { filter: drop-shadow(0 0 24px rgba(154, 243, 251, 0.55)); }
+/* alert: red HUD */
+#claw-face.mood-alert .r-outer,
+#claw-face.mood-alert .r-mid,
+#claw-face.mood-alert .r-ticks,
+#claw-face.mood-alert .r-core { stroke: var(--dead); }
+#claw-face.mood-alert .wave rect { fill: var(--dead); animation-duration: 0.6s; }
+#claw-face.mood-alert { filter: drop-shadow(0 0 22px rgba(255, 59, 92, 0.5)); }
 
 /* ---------- v2: companion chat (below the face) ---------- */
 .cp-head { gap: 10px; padding: 10px 14px; }
