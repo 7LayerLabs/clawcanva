@@ -1,0 +1,19 @@
+{
+  "name": "clawcanvas",
+  "version": "1.0.0",
+  "description": "Free Windows CNVS: infinite canvas of Claude Code agents with voice control",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.2.1",
+    "node-pty": "^1.1.0",
+    "ws": "^8.21.0"
+  }
+}

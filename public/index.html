@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClawCanvas — command your agents</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="viewport">
+  <div id="world"></div>
+</div>
+
+<header id="topbar">
+  <div class="wordmark">CLAW<span>CANVAS</span></div>
+  <div class="tb-divider"></div>
+  <button class="tb-btn accent" id="btn-agent">+ AGENT</button>
+  <button class="tb-btn" id="btn-shell">+ SHELL</button>
+  <button class="tb-btn" id="btn-note">+ NOTE</button>
+  <div class="tb-spacer"></div>
+  <button class="tb-btn mic" id="btn-mic" title="Hold to talk (or hold F2)">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+    <span>TALK</span>
+  </button>
+  <div class="tb-divider"></div>
+  <span id="zoom-label">100%</span>
+  <button class="tb-btn" id="btn-home" title="Reset view">⌂</button>
+</header>
+
+<div id="voice-hud" class="hidden">
+  <div class="pulse"></div>
+  <span id="voice-text">listening…</span>
+</div>
+
+<div id="modal-backdrop" class="hidden">
+  <div id="spawn-modal">
+    <h2>SPAWN AGENT</h2>
+    <label>PRESET</label>
+    <select id="spawn-preset">
+      <option value="claude">Claude Code</option>
+      <option value="claude --continue">Claude Code — continue last session</option>
+      <option value="claude --dangerously-skip-permissions">Claude Code — YOLO (skip permissions)</option>
+      <option value="__custom">Custom command…</option>
+    </select>
+    <div id="custom-cmd-row" class="hidden">
+      <label>COMMAND</label>
+      <input type="text" id="spawn-cmd" placeholder="e.g. npx codex">
+    </div>
+    <label>PROJECT FOLDER</label>
+    <input type="text" id="spawn-cwd" list="cwd-history" placeholder="C:\Users\Derek\my-project">
+    <datalist id="cwd-history"></datalist>
+    <div class="modal-actions">
+      <button class="tb-btn" id="spawn-cancel">CANCEL</button>
+      <button class="tb-btn accent" id="spawn-go">SPAWN</button>
+    </div>
+  </div>
+</div>
+
+<div id="claw-panel">
+  <div class="cp-head"><span class="cp-dot"></span>CLAW <em>· ORCHESTRATOR</em></div>
+  <div id="claw-log"></div>
+  <input id="claw-input" type="text" placeholder="type here, or hold F2 and speak…" spellcheck="false">
+</div>
+
+<div id="hint">drag background to pan · scroll to zoom · hold <b>F2</b> (or TALK) and tell CLAW what you want</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
