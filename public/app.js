@@ -491,12 +491,15 @@ function speak(text) {
   } catch {}
 }
 
-// drive the little CLAW face: idle | thinking | talking | alert
+// drive the CLAW face: idle | thinking | talking | alert
+const MOOD_LABEL = { idle: 'ready', thinking: 'thinking…', talking: 'talking', alert: 'heads up' };
 function setMood(mood) {
   const f = document.getElementById('claw-face');
   if (!f) return;
   f.classList.remove('mood-idle', 'mood-thinking', 'mood-talking', 'mood-alert');
   f.classList.add('mood-' + mood);
+  const m = document.querySelector('.cp-mood');
+  if (m) m.textContent = MOOD_LABEL[mood] || '';
 }
 
 function findAgent(word) {
@@ -685,6 +688,15 @@ function localCommand(text) {
     speak('here is the fleet');
     return true;
   }
+  if (/(hide your face|hide the face|hide yourself|minimize yourself|go small)/.test(t)) {
+    setCompanion(false);
+    return true;
+  }
+  if (/(show your face|show yourself|come back|full screen)/.test(t)) {
+    setCompanion(true);
+    speak('here I am');
+    return true;
+  }
   return false;
 }
 
@@ -861,6 +873,20 @@ function initMermaid() {
   if (mermaidReady || !window.mermaid) return;
   try { window.mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' }); mermaidReady = true; } catch {}
 }
+
+/* ---------- CLAW companion (the big face panel) ---------- */
+const clawPanel = document.getElementById('claw-panel');
+const faceBtn = document.getElementById('btn-face');
+const clawReopen = document.getElementById('claw-reopen');
+
+function setCompanion(open) {
+  if (!clawPanel) return;
+  clawPanel.classList.toggle('open', open);
+  if (clawReopen) clawReopen.style.display = open ? 'none' : 'flex';
+  if (faceBtn) faceBtn.classList.toggle('on', open);
+}
+if (faceBtn) faceBtn.onclick = () => setCompanion(!clawPanel.classList.contains('open'));
+if (clawReopen) clawReopen.onclick = () => setCompanion(true);
 
 function openArtifacts() { if (artifactPanel) artifactPanel.classList.add('open'); }
 function toggleArtifacts() { if (artifactPanel) artifactPanel.classList.toggle('open'); }

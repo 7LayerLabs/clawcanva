@@ -23,6 +23,7 @@
   <button class="tb-btn" id="btn-shell">+ SHELL</button>
   <button class="tb-btn" id="btn-note">+ NOTE</button>
   <div class="tb-spacer"></div>
+  <button class="tb-btn on" id="btn-face" title="Show/hide the CLAW face">FACE</button>
   <button class="tb-btn" id="btn-artifact" title="Show/hide the artifact panel">PANEL</button>
   <button class="tb-btn conv" id="btn-conv" title="Hands-free conversation mode">CONV</button>
   <button class="tb-btn mic" id="btn-mic" title="Hold to talk (or hold F2)">
@@ -72,20 +73,30 @@
   </div>
 </div>
 
-<div id="claw-panel">
-  <div class="cp-head">
-    <svg id="claw-face" class="mood-idle" viewBox="0 0 44 30" width="34" height="24">
+<div id="claw-panel" class="open">
+  <div class="cp-face">
+    <svg id="claw-face" class="mood-idle" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid meet">
       <g class="eyes">
-        <ellipse class="eye eye-l" cx="15" cy="12" rx="3.2" ry="3.6"/>
-        <ellipse class="eye eye-r" cx="29" cy="12" rx="3.2" ry="3.6"/>
+        <g class="eye eye-l">
+          <ellipse class="eyeball" cx="68" cy="60" rx="18" ry="23"/>
+          <circle class="pupil" cx="68" cy="60" r="8"/>
+          <circle class="glint" cx="63" cy="53" r="3"/>
+        </g>
+        <g class="eye eye-r">
+          <ellipse class="eyeball" cx="132" cy="60" rx="18" ry="23"/>
+          <circle class="pupil" cx="132" cy="60" r="8"/>
+          <circle class="glint" cx="127" cy="53" r="3"/>
+        </g>
       </g>
-      <rect class="mouth" x="15" y="21" width="14" height="2.4" rx="1.2"/>
+      <ellipse class="mouth" cx="100" cy="112" rx="26" ry="4"/>
     </svg>
-    CLAW <em>· ORCHESTRATOR</em>
+    <div class="cp-mood">ready</div>
   </div>
+  <div class="cp-head"><span class="cp-dot"></span>CLAW <em>· ORCHESTRATOR</em></div>
   <div id="claw-log"></div>
   <input id="claw-input" type="text" placeholder="type here, or hold F2 and speak…" spellcheck="false">
 </div>
+<button id="claw-reopen" title="Show CLAW">☰ CLAW</button>
 
 <div id="hint">hold <b>F2</b> (or TALK) to speak · <b>CONV</b> for hands-free · say “what can you do” for the menu</div>
 
