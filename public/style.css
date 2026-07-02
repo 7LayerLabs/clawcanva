@@ -637,6 +637,7 @@ html, body {
   border-color: var(--ember-soft);
   color: #fff;
 }
+.tb-btn.disabled { opacity: 0.4; }
 
 /* ---------- v2: artifact panel ---------- */
 #artifact-panel {

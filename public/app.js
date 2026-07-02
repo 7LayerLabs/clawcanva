@@ -444,15 +444,18 @@ const micBtn = document.getElementById('btn-mic');
 const voiceHud = document.getElementById('voice-hud');
 const voiceText = document.getElementById('voice-text');
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const SPEECH_OK = !!SR;
+const NO_SPEECH_MSG =
+  'Voice needs Edge or Chrome — Firefox and Brave block the Web Speech API.\n\n' +
+  'You can still TYPE commands in the CLAW box (bottom of the face panel) right now.\n\n' +
+  'For voice: close this window and double-click start-clawcanvas.cmd, or open ' +
+  'http://localhost:18790 in Microsoft Edge.';
 let recog = null;
 let listening = false;
 let voiceDiscard = false;
 
 function startListening() {
-  if (!SR) {
-    alert('This browser has no Web Speech API (Firefox/Brave don\'t). Run start-clawcanvas.cmd — it opens ClawCanvas in Edge, where voice works.');
-    return;
-  }
+  if (!SR) { alert(NO_SPEECH_MSG); return; }
   if (conversationMode) return; // conversation mode owns the mic
   if (listening) return;
   listening = true;
@@ -868,10 +871,7 @@ let convRecog = null;
 const convBtn = document.getElementById('btn-conv');
 
 function startConversation() {
-  if (!SR) {
-    alert('This browser has no Web Speech API. Open ClawCanvas in Edge (run start-clawcanvas.cmd).');
-    return;
-  }
+  if (!SR) { alert(NO_SPEECH_MSG); return; }
   if (conversationMode) return;
   if (listening) stopListening(); // don't run both mics
   conversationMode = true;
@@ -935,6 +935,15 @@ function setCompanion(open) {
 }
 if (faceBtn) faceBtn.onclick = () => setCompanion(!clawPanel.classList.contains('open'));
 if (clawReopen) clawReopen.onclick = () => setCompanion(true);
+
+// No Web Speech API (Firefox/Brave): make typing the obvious path, don't dead-end.
+if (!SPEECH_OK) {
+  micBtn.classList.add('disabled');
+  micBtn.title = 'Voice needs Edge or Chrome';
+  if (convBtn) { convBtn.classList.add('disabled'); convBtn.title = 'Voice needs Edge or Chrome'; }
+  if (clawInput) clawInput.placeholder = 'type a command here — voice needs Edge or Chrome';
+  clawLog('claw', 'Voice is off in this browser. Type commands here, or open in Edge for voice.');
+}
 
 function openArtifacts() { if (artifactPanel) artifactPanel.classList.add('open'); }
 function toggleArtifacts() { if (artifactPanel) artifactPanel.classList.toggle('open'); }
