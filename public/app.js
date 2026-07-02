@@ -508,19 +508,34 @@ function abortListening() {
 let voiceList = [];
 let clawVoice = null;
 
+const isNatural = (v) => v && /Online \(Natural\)/i.test(v.name);
+
 function refreshVoices() {
   const all = speechSynthesis.getVoices();
-  voiceList = all.filter((v) => /Online \(Natural\)/i.test(v.name) && v.lang.startsWith('en'));
-  if (!voiceList.length) voiceList = all.filter((v) => v.lang.startsWith('en'));
+  if (!all.length) return; // transient empty — keep whatever we have
+  const natural = all.filter((v) => isNatural(v) && v.lang.startsWith('en'));
+  voiceList = natural.length ? natural : all.filter((v) => v.lang.startsWith('en'));
+
   const saved = localStorage.getItem('clawVoice');
-  clawVoice =
-    voiceList.find((v) => v.name === saved) ||
-    voiceList.find((v) => /Andrew/i.test(v.name)) ||
-    voiceList.find((v) => /Guy/i.test(v.name)) ||
+  const bySaved = voiceList.find((v) => v.name === saved);
+  if (bySaved) { clawVoice = bySaved; return; }
+
+  // once we've locked onto a natural voice, never downgrade back to robotic
+  if (isNatural(clawVoice)) return;
+
+  const pick =
+    voiceList.find((v) => /Andrew/i.test(v.name)) ||   // warm male neural
+    voiceList.find((v) => /Brian|Christopher|Guy/i.test(v.name)) ||
+    voiceList.find((v) => /Aria|Ava|Emma|Jenny/i.test(v.name)) ||
     voiceList[0] || null;
+
+  if (pick) clawVoice = pick;
 }
 speechSynthesis.onvoiceschanged = refreshVoices;
 refreshVoices();
+// neural voices are fetched over the network and can arrive a beat late — keep
+// checking so we upgrade off the robotic local voice as soon as they show up.
+[400, 1200, 3000, 6000].forEach((ms) => setTimeout(refreshVoices, ms));
 
 let clawSpeaking = false; // true while CLAW's TTS is playing (echo guard for conversation mode)
 
@@ -710,6 +725,22 @@ async function orchestrate(text) {
 /* ---------- local voice shortcuts (no round-trip, work offline) ---------- */
 function localCommand(text) {
   const t = text.trim().toLowerCase();
+
+  // instant small talk — never hit the Claude CLI for a plain "hello"
+  if (/^((hi|hey+|hello+|yo|sup|hiya|howdy)( there| claw)?|you there|are you there|how are you|how'?s it going|what'?s up|good (morning|afternoon|evening|night))[\s!,.?]*$/i.test(t)) {
+    clawLog('you', text);
+    const r = ['hey Derek, what do you need?', "hey, I'm here. what's up?", 'yep, right here. what do you need?', "hey. ready when you are."];
+    const line = r[Math.floor(Math.random() * r.length)];
+    speak(line); clawLog('claw', line);
+    return true;
+  }
+  if (/^(thanks|thank you|thx|ty|good job|nice|awesome|great job|perfect|love it|well done|appreciate it)[\s!,.]*$/i.test(t)) {
+    clawLog('you', text);
+    const line = ['anytime.', 'you got it.', 'happy to help.'][Math.floor(Math.random() * 3)];
+    speak(line); clawLog('claw', line);
+    return true;
+  }
+
   if (/^(show me the menu|show menu|what can you do|help|menu)\b/.test(t)) {
     clawLog('you', text);
     renderArtifact({ format: 'menu' });
