@@ -649,7 +649,7 @@ function clawLog(who, text) {
   clawLogEl.scrollTop = clawLogEl.scrollHeight;
   if (who === 'you' || who === 'claw') {
     clawHistory.push({ who, text });
-    if (clawHistory.length > 8) clawHistory.shift();
+    if (clawHistory.length > 16) clawHistory.shift();
   }
 }
 
@@ -664,7 +664,9 @@ async function orchestrate(text) {
     const body = {
       transcript: text,
       lastCwd,
-      history: clawHistory.slice(-6),
+      model: clawModel,
+      screen: { w: innerWidth, h: innerHeight },
+      history: clawHistory.slice(-10),
       agents: [...panes.values()]
         .filter((p) => p.type === 'term' && p.name)
         .map((p) => ({
@@ -706,6 +708,8 @@ async function orchestrate(text) {
       } else if (a.type === 'close') {
         const p = findAgent(a.target);
         if (p) closePane(p.id);
+      } else if (a.type === 'arrange' || a.type === 'tidy') {
+        arrangeGrid();
       } else if (a.type === 'openclaw') {
         askFleet(a.agent, a.text); // fire and continue — fleet turns take a while
       }
@@ -764,7 +768,7 @@ function localCommand(text) {
     speak('here is the fleet');
     return true;
   }
-  if (/(tidy|arrange|organi[sz]e|clean up|line.*up|grid)/.test(t)) {
+  if (/(tidy|arrange|organi[sz]e|clean up|line.*up|grid|fit .*(canvas|screen|window|terminal)|make .*(fit|tiles fit)|fit the (tiles|terminals|panes|windows))/.test(t)) {
     clawLog('you', text);
     arrangeGrid();
     speak('all tidied up');
@@ -966,6 +970,27 @@ function setCompanion(open) {
 }
 if (faceBtn) faceBtn.onclick = () => setCompanion(!clawPanel.classList.contains('open'));
 if (clawReopen) clawReopen.onclick = () => setCompanion(true);
+
+/* ---------- brain speed/depth toggle (haiku ⟷ sonnet ⟷ opus) ---------- */
+const MODEL_CYCLE = ['sonnet', 'haiku', 'opus'];
+const MODEL_HINT = { haiku: 'fast', sonnet: 'smart', opus: 'deep' };
+let clawModel = localStorage.getItem('clawModel') || 'sonnet';
+const modelBtn = document.getElementById('btn-model');
+
+function paintModelBtn() {
+  if (!modelBtn) return;
+  modelBtn.textContent = `${clawModel.toUpperCase()} · ${MODEL_HINT[clawModel]}`;
+}
+if (modelBtn) {
+  paintModelBtn();
+  modelBtn.title = 'CLAW brain: sonnet (smart) · haiku (fast) · opus (deep)';
+  modelBtn.onclick = () => {
+    clawModel = MODEL_CYCLE[(MODEL_CYCLE.indexOf(clawModel) + 1) % MODEL_CYCLE.length];
+    localStorage.setItem('clawModel', clawModel);
+    paintModelBtn();
+    clawLog('claw', `brain: ${clawModel} (${MODEL_HINT[clawModel]})`);
+  };
+}
 
 // No Web Speech API (Firefox/Brave): make typing the obvious path, don't dead-end.
 if (!SPEECH_OK) {

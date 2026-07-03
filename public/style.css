@@ -588,11 +588,12 @@ html, body {
 }
 #claw-face .pupil { fill: #06181c; }
 #claw-face .mouth {
-  fill: var(--face-mouth);
+  fill: none;
+  stroke: var(--face-mouth);
   transform-box: fill-box;
   transform-origin: center;
   filter: drop-shadow(0 0 8px rgba(87, 224, 176, 0.85));
-  transition: fill 0.35s;
+  transition: stroke 0.35s;
 }
 
 /* blink — squash the eyes vertically around their own centre */
@@ -612,7 +613,7 @@ html, body {
 
 /* moods */
 #claw-face.mood-thinking .eyeball { fill: var(--amber); filter: drop-shadow(0 0 6px var(--amber)) drop-shadow(0 0 16px rgba(255, 180, 84, 0.6)); }
-#claw-face.mood-thinking .mouth { fill: var(--amber); }
+#claw-face.mood-thinking .mouth { stroke: var(--amber); }
 #claw-face.mood-thinking .pupil { animation: gaze-up 1.7s ease-in-out infinite; }
 @keyframes gaze-up { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(2px, -3px); } }
 
@@ -624,7 +625,7 @@ html, body {
 }
 
 #claw-face.mood-alert .eyeball { fill: var(--dead); filter: drop-shadow(0 0 6px var(--dead)) drop-shadow(0 0 16px rgba(255, 59, 92, 0.6)); }
-#claw-face.mood-alert .mouth { fill: var(--dead); }
+#claw-face.mood-alert .mouth { stroke: var(--dead); }
 
 /* status caption under the face */
 .cp-sub {
