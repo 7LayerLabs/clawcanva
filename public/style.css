@@ -455,16 +455,12 @@ html, body {
   padding: 8px 12px 10px;
   border-bottom: 1px solid var(--line);
 }
-.cp-face #claw-face {
-  width: 82%;
-  max-width: 320px;
-  height: auto;
-  filter: drop-shadow(0 6px 24px rgba(255, 77, 28, 0.18));
+.cp-face .face-screen {
   animation: breathe 5.5s ease-in-out infinite;
 }
 @keyframes breathe {
   0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-4px) scale(1.012); }
+  50% { transform: translateY(-4px) scale(1.015); }
 }
 .cp-mood {
   font-family: var(--display);
@@ -556,67 +552,86 @@ html, body {
   animation: micpulse 1.4s infinite;
 }
 
-/* ---------- v2: Jarvis-style reactor face ----------
-   A holographic HUD: spinning concentric rings + a reactive waveform core.
-   Cyan by default; brighter when talking, amber when thinking, red on alert. */
+/* ---------- v2: CLAW face (Ricky-style glowing eyes) ----------
+   Big bright cyan eyes + a soft mouth on an ambient screen. Friendly, alive.
+   Cyan when listening, amber when thinking, bright when speaking, red on alert. */
 
 :root {
-  --hud: #56d4dd;
-  --hud-bright: #9af3fb;
-  --hud-blue: #5ca9ff;
+  --face: #6fe8f6;
+  --face-bright: #b6f6ff;
+  --face-mouth: #57e0b0;
 }
 
-#claw-face {
-  overflow: visible;
-  filter: drop-shadow(0 0 16px rgba(86, 212, 221, 0.35));
-  transition: filter 0.4s;
+/* the ambient "screen" the face floats on */
+.face-screen {
+  width: 88%;
+  max-width: 330px;
+  aspect-ratio: 1 / 1;
+  border-radius: 26%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(52, 120, 120, 0.30), rgba(9, 13, 16, 0.96) 66%);
+  box-shadow: inset 0 0 70px rgba(0, 0, 0, 0.55), 0 0 60px rgba(50, 130, 130, 0.12);
+  transition: box-shadow 0.5s;
 }
-#claw-face .reactor > * { transform-box: fill-box; transform-origin: center; }
+#claw-face.mood-talking ~ .cp-mood { color: var(--face-bright); }
+.cp-face:has(.mood-alert) .face-screen { box-shadow: inset 0 0 70px rgba(0,0,0,0.55), 0 0 70px rgba(255,59,92,0.25); }
 
-#claw-face .r-outer,
-#claw-face .r-mid,
-#claw-face .r-ticks { fill: none; stroke: var(--hud); transition: stroke 0.4s; }
-#claw-face .r-outer { stroke-width: 2; stroke-dasharray: 46 26; opacity: 0.85; animation: spin 16s linear infinite; }
-#claw-face .r-mid { stroke-width: 1.5; stroke-dasharray: 72 40; opacity: 0.7; animation: spin 10s linear infinite reverse; }
-#claw-face .r-ticks { stroke-width: 7; stroke-dasharray: 1.5 9; opacity: 0.4; animation: spin 46s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
+#claw-face { width: 80%; overflow: visible; }
 
-#claw-face .r-coreglow { fill: rgba(86, 212, 221, 0.18); filter: blur(7px); animation: pulse 3.6s ease-in-out infinite; }
-@keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
-#claw-face .r-core { fill: #071619; stroke: var(--hud); stroke-width: 1.5; opacity: 0.9; transition: stroke 0.4s; }
-
-/* waveform bars — equalizer that reacts to CLAW's state */
-#claw-face .wave rect { fill: var(--hud-bright); transition: fill 0.4s; animation: eq 2.4s ease-in-out infinite; }
-#claw-face .wave rect:nth-child(1) { animation-delay: -0.9s; }
-#claw-face .wave rect:nth-child(2) { animation-delay: -0.3s; }
-#claw-face .wave rect:nth-child(3) { animation-delay: -1.6s; }
-#claw-face .wave rect:nth-child(4) { animation-delay: -0.6s; }
-#claw-face .wave rect:nth-child(5) { animation-delay: -1.2s; }
-@keyframes eq {
-  0%, 100% { transform: scaleY(0.22); }
-  50% { transform: scaleY(1); }
+#claw-face .eyeball {
+  fill: var(--face);
+  filter: drop-shadow(0 0 6px var(--face)) drop-shadow(0 0 16px rgba(111, 232, 246, 0.65));
+  transition: fill 0.35s;
+}
+#claw-face .pupil { fill: #06181c; }
+#claw-face .mouth {
+  fill: var(--face-mouth);
+  transform-box: fill-box;
+  transform-origin: center;
+  filter: drop-shadow(0 0 8px rgba(87, 224, 176, 0.85));
+  transition: fill 0.35s;
 }
 
-/* idle: calm, slow breathing bars */
-#claw-face.mood-idle .wave rect { animation-duration: 3s; }
-/* thinking: amber, quicker sweep */
-#claw-face.mood-thinking .r-outer,
-#claw-face.mood-thinking .r-mid,
-#claw-face.mood-thinking .r-ticks,
-#claw-face.mood-thinking .r-core { stroke: var(--amber); }
-#claw-face.mood-thinking .wave rect { fill: var(--amber); animation-duration: 1.3s; }
-#claw-face.mood-thinking { filter: drop-shadow(0 0 18px rgba(255, 180, 84, 0.4)); }
-/* talking: bright cyan, fast energetic equalizer */
-#claw-face.mood-talking .wave rect { animation-duration: 0.42s; fill: #fff; }
-#claw-face.mood-talking .r-core { stroke: var(--hud-bright); }
-#claw-face.mood-talking { filter: drop-shadow(0 0 24px rgba(154, 243, 251, 0.55)); }
-/* alert: red HUD */
-#claw-face.mood-alert .r-outer,
-#claw-face.mood-alert .r-mid,
-#claw-face.mood-alert .r-ticks,
-#claw-face.mood-alert .r-core { stroke: var(--dead); }
-#claw-face.mood-alert .wave rect { fill: var(--dead); animation-duration: 0.6s; }
-#claw-face.mood-alert { filter: drop-shadow(0 0 22px rgba(255, 59, 92, 0.5)); }
+/* blink — squash the eyes vertically around their own centre */
+#claw-face .eyes { transform-box: fill-box; transform-origin: center; animation: blink 5.4s infinite; }
+@keyframes blink {
+  0%, 93%, 100% { transform: scaleY(1); }
+  96% { transform: scaleY(0.08); }
+}
+
+/* idle: pupils drift gently so it feels alive */
+#claw-face .pupil { transform-box: fill-box; transform-origin: center; animation: gaze 7.5s ease-in-out infinite; }
+@keyframes gaze {
+  0%, 100% { transform: translateX(0); }
+  30% { transform: translateX(-3px); }
+  65% { transform: translateX(3px); }
+}
+
+/* moods */
+#claw-face.mood-thinking .eyeball { fill: var(--amber); filter: drop-shadow(0 0 6px var(--amber)) drop-shadow(0 0 16px rgba(255, 180, 84, 0.6)); }
+#claw-face.mood-thinking .mouth { fill: var(--amber); }
+#claw-face.mood-thinking .pupil { animation: gaze-up 1.7s ease-in-out infinite; }
+@keyframes gaze-up { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(2px, -3px); } }
+
+#claw-face.mood-talking .eyeball { fill: var(--face-bright); }
+#claw-face.mood-talking .mouth { animation: talk 0.28s infinite; }
+@keyframes talk {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(3.4); }
+}
+
+#claw-face.mood-alert .eyeball { fill: var(--dead); filter: drop-shadow(0 0 6px var(--dead)) drop-shadow(0 0 16px rgba(255, 59, 92, 0.6)); }
+#claw-face.mood-alert .mouth { fill: var(--dead); }
+
+/* status caption under the face */
+.cp-sub {
+  font-size: 11px;
+  color: var(--ink-dim);
+  margin-top: 2px;
+}
 
 /* ---------- v2: companion chat (below the face) ---------- */
 .cp-head { gap: 10px; padding: 10px 14px; }

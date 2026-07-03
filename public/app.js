@@ -552,7 +552,7 @@ function speak(text) {
 }
 
 // drive the CLAW face: idle | thinking | talking | alert
-const MOOD_LABEL = { idle: 'online', thinking: 'thinking…', talking: 'speaking', alert: 'heads up' };
+const MOOD_LABEL = { idle: 'listening', thinking: 'thinking…', talking: 'speaking', alert: 'heads up' };
 function setMood(mood) {
   const f = document.getElementById('claw-face');
   if (!f) return;
@@ -973,6 +973,10 @@ if (!SPEECH_OK) {
   micBtn.title = 'Voice needs Edge or Chrome';
   if (convBtn) { convBtn.classList.add('disabled'); convBtn.title = 'Voice needs Edge or Chrome'; }
   if (clawInput) clawInput.placeholder = 'type a command here — voice needs Edge or Chrome';
+  const moodEl = document.querySelector('.cp-mood');
+  const subEl = document.querySelector('.cp-sub');
+  if (moodEl) moodEl.textContent = 'type below';
+  if (subEl) subEl.textContent = 'voice needs Edge or Chrome';
   clawLog('claw', 'Voice is off in this browser. Type commands here, or open in Edge for voice.');
 }
 
