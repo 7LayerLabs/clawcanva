@@ -11,7 +11,26 @@ const LAYOUT_FILE = path.join(__dirname, 'data', 'layout.json');
 
 const app = express();
 app.use(express.json({ limit: '5mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+
+// ---- auto cache-busting: stamp app.js/style.css with their last-modified time so
+// the browser fetches the fresh file the instant it changes (no hard-refresh) ----
+const PUBLIC_DIR = path.join(__dirname, 'public');
+function assetVer(file) {
+  try { return fs.statSync(path.join(PUBLIC_DIR, file)).mtimeMs.toString(36); }
+  catch { return '0'; }
+}
+app.get(['/', '/index.html'], (req, res) => {
+  let html;
+  try { html = fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'), 'utf8'); }
+  catch { return res.sendStatus(500); }
+  html = html
+    .replace('href="style.css"', `href="style.css?v=${assetVer('style.css')}"`)
+    .replace('src="app.js"', `src="app.js?v=${assetVer('app.js')}"`);
+  res.set('Cache-Control', 'no-cache');
+  res.type('html').send(html);
+});
+// serve the static assets (but not index.html — the route above owns that)
+app.use(express.static(PUBLIC_DIR, { index: false }));
 
 app.get('/api/layout', (req, res) => {
   try {
