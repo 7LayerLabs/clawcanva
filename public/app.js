@@ -640,6 +640,20 @@ const clawInput = document.getElementById('claw-input');
 const clawDot = document.querySelector('.cp-dot');
 
 const clawHistory = []; // last few turns, for follow-up context
+let clawFacts = [];     // durable facts CLAW remembers across sessions
+
+async function loadFacts() {
+  try { const m = await (await fetch('/api/memory')).json(); clawFacts = m.facts || []; } catch {}
+}
+loadFacts();
+
+// save a durable fact and keep it in memory for this session too
+async function rememberFact(text) {
+  const t = String(text || '').trim();
+  if (!t) return;
+  if (!clawFacts.some((f) => (f.text || f) === t)) clawFacts.push({ text: t });
+  try { await fetch('/api/memory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: t }) }); } catch {}
+}
 
 function clawLog(who, text) {
   const div = document.createElement('div');
@@ -666,6 +680,7 @@ async function orchestrate(text) {
       lastCwd,
       model: clawModel,
       screen: { w: innerWidth, h: innerHeight },
+      facts: clawFacts,
       history: clawHistory.slice(-10),
       agents: [...panes.values()]
         .filter((p) => p.type === 'term' && p.name)
@@ -710,6 +725,12 @@ async function orchestrate(text) {
         if (p) closePane(p.id);
       } else if (a.type === 'arrange' || a.type === 'tidy') {
         arrangeGrid();
+      } else if (a.type === 'remember') {
+        rememberFact(a.text);
+      } else if (a.type === 'open') {
+        openApp(a.app);
+      } else if (a.type === 'search') {
+        research(a.query || a.text);
       } else if (a.type === 'openclaw') {
         askFleet(a.agent, a.text); // fire and continue — fleet turns take a while
       }
@@ -768,6 +789,16 @@ function localCommand(text) {
     speak('here is the fleet');
     return true;
   }
+  // open an app / site / URL
+  let mo = t.match(/^(?:open|launch|go to|pull up)\s+(https?:\/\/\S+)/);
+  if (mo) { clawLog('you', text); openApp(mo[1]); return true; }
+  mo = t.match(/^(?:open|launch|pull up|bring up|fire up)\s+(?:the\s+|up\s+|my\s+)?(browser|chrome|edge|firefox|vs ?code|visual studio code|notepad|file explorer|explorer|files|calculator|calc|spotify|windows terminal|terminal|powershell|paint|word|excel|outlook|settings|youtube|gmail|google|github|twitter|chatgpt|claude|maps)\b/);
+  if (mo) { clawLog('you', text); openApp(mo[1]); return true; }
+  // web search
+  let ms = t.match(/^(?:search(?: the web)?(?: for)?|google|web search|search up|look ?up)\s+(.+)/);
+  if (ms && ms[1]) { clawLog('you', text); research(ms[1]); return true; }
+  ms = t.match(/^what'?s (?:the latest|new|happening|going on)(?: on| with| in| about)?\s+(.+)/);
+  if (ms && ms[1]) { clawLog('you', text); research(ms[1]); return true; }
   if (/(tidy|arrange|organi[sz]e|clean up|line.*up|grid|fit .*(canvas|screen|window|terminal)|make .*(fit|tiles fit)|fit the (tiles|terminals|panes|windows))/.test(t)) {
     clawLog('you', text);
     arrangeGrid();
@@ -819,6 +850,42 @@ async function askFleet(agent, text) {
   } finally {
     clawDot.classList.remove('thinking');
   }
+}
+
+// launch an app or website on Derek's PC
+async function openApp(app) {
+  if (!app) return;
+  clawLog('claw', `opening ${app}…`);
+  try {
+    const r = await (await fetch('/api/open', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ app }),
+    })).json();
+    if (r.error) { speak(`couldn't open ${app}`); clawLog('claw', `open failed: ${r.error}`); }
+    else { speak(`opening ${app}`); }
+  } catch (e) { speak(`couldn't open ${app}`); clawLog('claw', String(e)); }
+}
+
+// search the web (Exa) and answer
+async function research(query) {
+  const q = String(query || '').trim();
+  if (!q) return;
+  clawLog('claw', `searching the web for "${q}"…`);
+  clawDot.classList.add('thinking'); setMood('thinking');
+  try {
+    const r = await (await fetch('/api/research', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, model: clawModel }),
+    })).json();
+    if (r.error === 'no-exa-key') {
+      const m = 'Web search needs an Exa API key. Get one free at exa.ai, then paste it into `data/exa.key` (or set the EXA_API_KEY env var) and restart.';
+      speak("web search isn't set up yet — you need an Exa key"); clawLog('claw', m);
+      renderArtifact({ format: 'markdown', content: '### Web search not set up\n' + m });
+      return;
+    }
+    if (r.error) { speak('web search hit a snag'); clawLog('claw', `search error: ${r.error}`); return; }
+    if (r.say) { speak(r.say); clawLog('claw', r.say); }
+    if (r.artifact) renderArtifact(r.artifact);
+  } catch (e) { speak('web search failed'); clawLog('claw', String(e)); }
+  finally { clawDot.classList.remove('thinking'); setMood('idle'); }
 }
 
 clawInput.addEventListener('keydown', (e) => {
@@ -1087,6 +1154,11 @@ function menuHtml() {
 - **"what's everyone doing?"** / **"what's atlas stuck on?"**
 - **"show me a status board"** — live fleet board
 - **"draw a diagram of what the agents are doing"** — mermaid
+
+### Do things itself
+- **"open the browser"** / **"open VS Code"** / **"open YouTube"** — launch apps & sites
+- **"search the web for X"** / **"what's the latest on Y"** — CLAW searches (Exa) and answers
+- **"remember the soulclaw repo is https://..."** — CLAW saves it forever
 
 ### Voice
 - **Hold F2** (or TALK) to speak one command
